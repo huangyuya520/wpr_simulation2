@@ -596,8 +596,6 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /clicked_point
     - Class: nav2_rviz_plugins/GoalTool
-    - Class: wp_map_tools/AddWaypointTool
-      Topic: /waterplus/add_waypoint
   Transformation:
     Current:
       Class: rviz_default_plugins/TF

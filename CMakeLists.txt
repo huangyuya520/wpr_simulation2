@@ -32,6 +32,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(ros_gz_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
 
 if(WPR_BUILD_POINTCLOUD_TOOLS OR WPR_BUILD_TUTORIAL_DEMOS)
@@ -95,7 +96,7 @@ endif()
 
 add_executable(grab_object_sim src/grab_object_sim.cpp)
 ament_target_dependencies(grab_object_sim
-"rclcpp" "geometry_msgs" "sensor_msgs" "std_msgs"
+"rclcpp" "geometry_msgs" "nav_msgs" "ros_gz_interfaces" "sensor_msgs" "std_msgs"
 )
 target_link_libraries(grab_object_sim "${cpp_typesupport_target}")
 
@@ -257,6 +258,7 @@ install(PROGRAMS
   src/face_detector.py
   src/ensure_controller_active.py
   src/gz_planar_move.py
+  src/raise_gazebo_window.py
   src/sensor_frame_normalizer.py
   DESTINATION lib/${PROJECT_NAME}
 )

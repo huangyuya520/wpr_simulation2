@@ -14,6 +14,9 @@ sudo apt install -y \
   ros-jazzy-teleop-twist-keyboard \
   ros-jazzy-navigation2 \
   ros-jazzy-nav2-bringup \
+  ros-jazzy-nav2-map-server \
+  ros-jazzy-moveit \
+  ros-jazzy-moveit-ros \
   ros-jazzy-rviz2 \
   ros-jazzy-ros2-control \
   ros-jazzy-ros2-controllers \

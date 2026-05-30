@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
-from pathlib import Path
-
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, LogInfo, RegisterEventHandler, Shutdown, TimerAction
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
+from launch_ros.substitutions import FindPackagePrefix, FindPackageShare
 
 
 def _continue_on_success(success_actions, process_label, shutdown_on_failure=True):
@@ -44,7 +42,9 @@ def generate_launch_description():
     controller_params = PathJoinSubstitution(
         [FindPackageShare("wpr_simulation2"), "config", "wpb_home_controller.yaml"]
     )
-    helper_script = Path(__file__).resolve().parents[1] / "src" / "ensure_controller_active.py"
+    helper_script = PathJoinSubstitution(
+        [FindPackagePrefix("wpr_simulation2"), "lib", "wpr_simulation2", "ensure_controller_active.py"]
+    )
 
     robot_description_content = Command(
         [
@@ -131,8 +131,7 @@ def generate_launch_description():
 
     joint_state_broadcaster_ensure = ExecuteProcess(
         cmd=[
-            FindExecutable(name="python3"),
-            str(helper_script),
+            helper_script,
             "--controller-name",
             "joint_state_broadcaster",
             "--timeout-sec",
@@ -143,8 +142,7 @@ def generate_launch_description():
 
     manipulator_controller_ensure = ExecuteProcess(
         cmd=[
-            FindExecutable(name="python3"),
-            str(helper_script),
+            helper_script,
             "--controller-name",
             "manipulator_controller",
             "--timeout-sec",

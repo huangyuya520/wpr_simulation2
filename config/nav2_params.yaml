@@ -21,6 +21,12 @@ amcl:
     max_particles: 2000
     min_particles: 500
     odom_frame_id: "odom"
+    set_initial_pose: true
+    initial_pose:
+      x: -4.0
+      y: -0.5
+      z: 0.0
+      yaw: 0.0
     pf_err: 0.05
     pf_z: 0.99
     recovery_alpha_fast: 0.0
@@ -216,9 +222,8 @@ global_costmap:
 map_server:
   ros__parameters:
     use_sim_time: True
-    # Overridden in launch by the "map" launch configuration or provided default value.
-    # To use in yaml, provide full path to map below.
-    yaml_filename: ""
+    # Keep a package-relative default so home.launch.py works without a CLI map override.
+    yaml_filename: "$(find-pkg-share wpr_simulation2)/maps/map.yaml"
 
 map_saver:
   ros__parameters:

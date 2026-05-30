@@ -1,61 +1,90 @@
 #!/usr/bin/env python3
-#
-# Copyright 2023 6-robot.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# Authors: Zhang Wanjie
 
-import os
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    launch_file_dir = os.path.join(get_package_share_directory('wpr_simulation2'), 'launch')
+    spawn_objects_arg = DeclareLaunchArgument(
+        "spawn_objects",
+        default_value="false",
+        description="Set true to spawn the complete furniture/object scene during SLAM.",
+    )
+    launch_rviz_arg = DeclareLaunchArgument(
+        "launch_rviz",
+        default_value="true",
+        description="Start RViz with the SLAM view.",
+    )
+    gazebo_gui_arg = DeclareLaunchArgument(
+        "gazebo_gui",
+        default_value="true",
+        description="Open a visible Gazebo Sim GUI window.",
+    )
+    slam_params_file_arg = DeclareLaunchArgument(
+        "slam_params_file",
+        default_value=PathJoinSubstitution(
+            [
+                FindPackageShare("wpr_simulation2"),
+                "config",
+                "slam_toolbox_mapping.yaml",
+            ]
+        ),
+        description="Full path to the slam_toolbox mapping parameters file.",
+    )
 
     gazebo_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(launch_file_dir, 'robocup_home.launch.py')
-        )
+            PathJoinSubstitution(
+                [FindPackageShare("wpr_simulation2"), "launch", "robocup_home.launch.py"]
+            )
+        ),
+        launch_arguments={
+            "spawn_objects": LaunchConfiguration("spawn_objects"),
+            "gazebo_gui": LaunchConfiguration("gazebo_gui"),
+        }.items(),
     )
 
-    slam_cmd = Node(
-        package="slam_toolbox",
-        executable="sync_slam_toolbox_node",
-        parameters=[{
-            "use_sim_time": True,
-            "base_frame": "base_footprint",
-            "odom_frame": "odom",
-            "map_frame": "map"
-        }]
+    slam_cmd = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution(
+                [FindPackageShare("slam_toolbox"), "launch", "online_sync_launch.py"]
+            )
+        ),
+        launch_arguments={
+            "use_sim_time": "true",
+            "autostart": "true",
+            "slam_params_file": LaunchConfiguration("slam_params_file"),
+        }.items(),
     )
 
     rviz_cmd = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        arguments=['-d', [os.path.join(get_package_share_directory('wpr_simulation2'), 'rviz', 'slam.rviz')]]
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        arguments=[
+            "-d",
+            PathJoinSubstitution(
+                [FindPackageShare("wpr_simulation2"), "rviz", "slam.rviz"]
+            ),
+        ],
+        condition=IfCondition(LaunchConfiguration("launch_rviz")),
     )
 
-    ld = LaunchDescription()
-
-    # Add the commands to the launch description
-    ld.add_action(gazebo_cmd)
-    ld.add_action(slam_cmd)
-    ld.add_action(rviz_cmd)
-
-    return ld
+    return LaunchDescription(
+        [
+            spawn_objects_arg,
+            launch_rviz_arg,
+            gazebo_gui_arg,
+            slam_params_file_arg,
+            gazebo_cmd,
+            slam_cmd,
+            # Why: RViz's slam_toolbox panel queries lifecycle parameters on startup;
+            # a short delay avoids a noisy race while Gazebo and SLAM are still configuring.
+            TimerAction(period=3.0, actions=[rviz_cmd]),
+        ]
+    )

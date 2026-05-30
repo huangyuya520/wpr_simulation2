@@ -31,6 +31,7 @@ class GzPlanarMove(Node):
         self.declare_parameter("publish_odom_tf", True)
         self.declare_parameter("update_rate", 50.0)
         self.declare_parameter("cmd_vel_timeout", 0.5)
+        self.declare_parameter("set_pose_request_timeout", 0.25)
         self.declare_parameter("initial_x", 0.0)
         self.declare_parameter("initial_y", 0.0)
         self.declare_parameter("initial_z", 0.0)
@@ -48,6 +49,9 @@ class GzPlanarMove(Node):
         self.cmd_vel_timeout = Duration(
             seconds=float(self.get_parameter("cmd_vel_timeout").value)
         )
+        self.set_pose_request_timeout = Duration(
+            seconds=float(self.get_parameter("set_pose_request_timeout").value)
+        )
 
         self.x = float(self.get_parameter("initial_x").value)
         self.y = float(self.get_parameter("initial_y").value)
@@ -58,6 +62,7 @@ class GzPlanarMove(Node):
         self.last_cmd_time = self.get_clock().now()
         self.last_update_time = self.get_clock().now()
         self.pending_request = None
+        self.pending_request_started_at = None
         self.service_name = f"/world/{self.world_name}/set_pose"
         self.service_wait_log_period = Duration(seconds=2.0)
         self.last_service_wait_log_time = self.get_clock().now()
@@ -98,8 +103,18 @@ class GzPlanarMove(Node):
             cmd = self.cmd_vel
 
         if self.pending_request is not None and not self.pending_request.done():
-            self.publish_odom_message(now, cmd)
-            return
+            if self._pending_request_is_fresh(now):
+                self.publish_odom_message(now, cmd)
+                return
+            # Why: a single stalled ros_gz service response must not freeze
+            # odom/TF forever; Nav2 otherwise keeps commanding motion and aborts
+            # with "Failed to make progress" while the simulated robot is stuck.
+            self.get_logger().warning(
+                "Gazebo set_pose request timed out; dropping the stale request "
+                "and continuing planar odometry integration."
+            )
+            self.pending_request = None
+            self.pending_request_started_at = None
 
         cos_yaw = math.cos(self.yaw)
         sin_yaw = math.sin(self.yaw)
@@ -147,11 +162,15 @@ class GzPlanarMove(Node):
         ) = quaternion_from_yaw(next_yaw)
 
         self.pending_request = self.set_pose_client.call_async(request)
+        self.pending_request_started_at = now
         self.pending_request.add_done_callback(self.on_set_pose_response)
         return True
 
     def on_set_pose_response(self, future) -> None:
+        if future is not self.pending_request:
+            return
         self.pending_request = None
+        self.pending_request_started_at = None
         try:
             response = future.result()
         except Exception as exc:  # pragma: no cover - runtime safeguard
@@ -203,6 +222,11 @@ class GzPlanarMove(Node):
         transform.transform.rotation.z = quat[2]
         transform.transform.rotation.w = quat[3]
         self.tf_broadcaster.sendTransform(transform)
+
+    def _pending_request_is_fresh(self, now) -> bool:
+        if self.pending_request_started_at is None:
+            return False
+        return now - self.pending_request_started_at <= self.set_pose_request_timeout
 
     @staticmethod
     def _is_motion_command(cmd: Twist) -> bool:

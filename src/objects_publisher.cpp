@@ -6,7 +6,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <std_msgs/msg/string.hpp>
@@ -67,8 +66,8 @@ struct FallbackObject
 };
 
 constexpr std::array<FallbackObject, 2> kFallbackObjects = {{
-    {"object_0", 1.10F, -0.20F, kFallbackBottleZMin},
-    {"object_1", 1.10F, 0.30F, kFallbackBottleZMin},
+    {"sim_fallback_red_bottle", 1.00F, -0.15F, kFallbackBottleZMin},
+    {"sim_fallback_green_bottle", 1.00F, 0.15F, kFallbackBottleZMin},
 }};
 
 struct TransformScore
@@ -293,10 +292,6 @@ public:
         "/kinect2/sd/points", 
         rclcpp::SensorDataQoS(),
         std::bind(&ObjectsPublisher::pointcloudCallback, this, std::placeholders::_1));
-    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-        "/odom",
-        10,
-        std::bind(&ObjectsPublisher::odomCallback, this, std::placeholders::_1));
     objects_pub_ = this->create_publisher<wpr_simulation2::msg::Object>("/wpb_home/objects_3d", 10);
     marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/objects_marker", 10);
     behavior_sub_ = this->create_subscription<std_msgs::msg::String>(
@@ -379,19 +374,10 @@ private:
 
   void computeExpectedObjectPose(const FallbackObject & fallback, float & publish_x, float & publish_y) const
   {
+    // Why: fallback bottles are already defined in the robot/base frame so the
+    // grasp node can align directly against the kitchen tabletop offsets.
     publish_x = fallback.x;
     publish_y = fallback.y;
-    if (!has_robot_pose_)
-    {
-      return;
-    }
-
-    const float dx = fallback.x - robot_x_;
-    const float dy = fallback.y - robot_y_;
-    const float cos_yaw = std::cos(robot_yaw_);
-    const float sin_yaw = std::sin(robot_yaw_);
-    publish_x = cos_yaw * dx + sin_yaw * dy;
-    publish_y = -sin_yaw * dx + cos_yaw * dy;
   }
 
   bool isPlausibleDetectedObject(
@@ -447,17 +433,6 @@ private:
   void resetDetectionFailureCounter()
   {
     consecutive_detection_failures_ = 0;
-  }
-
-  void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
-  {
-    robot_x_ = static_cast<float>(msg->pose.pose.position.x);
-    robot_y_ = static_cast<float>(msg->pose.pose.position.y);
-    const auto & q = msg->pose.pose.orientation;
-    const double siny_cosp = 2.0 * (q.w * q.z + q.x * q.y);
-    const double cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
-    robot_yaw_ = static_cast<float>(std::atan2(siny_cosp, cosy_cosp));
-    has_robot_pose_ = true;
   }
 
   bool transformPointCloudToBase(
@@ -979,7 +954,6 @@ private:
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pc_sub_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr behavior_sub_;
   rclcpp::Publisher<wpr_simulation2::msg::Object>::SharedPtr objects_pub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
@@ -992,10 +966,6 @@ private:
   visualization_msgs::msg::MarkerArray marker_array;
   bool auto_start_param;
   int consecutive_detection_failures_ = 0;
-  bool has_robot_pose_ = false;
-  float robot_x_ = 0.0F;
-  float robot_y_ = 0.0F;
-  float robot_yaw_ = 0.0F;
 };
 
 int main(int argc, char **argv)

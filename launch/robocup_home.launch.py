@@ -1,21 +1,36 @@
 #!/usr/bin/env python3
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    spawn_objects_arg = DeclareLaunchArgument(
+        "spawn_objects",
+        default_value="true",
+        description="Spawn furniture and small objects after the robot is inserted.",
+    )
+    gazebo_gui_arg = DeclareLaunchArgument(
+        "gazebo_gui",
+        default_value="true",
+        description="Open a visible Gazebo Sim GUI window.",
+    )
+
     world = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([FindPackageShare("wpr_simulation2"), "launch", "world.launch.py"])
+            PathJoinSubstitution(
+                [FindPackageShare("wpr_simulation2"), "launch", "world.launch.py"]
+            )
         ),
         launch_arguments={
             "world": PathJoinSubstitution(
                 [FindPackageShare("wpr_simulation2"), "worlds", "robocup_home.world"]
-            )
+            ),
+            "gazebo_gui": LaunchConfiguration("gazebo_gui"),
         }.items(),
     )
 
@@ -33,7 +48,16 @@ def generate_launch_description():
             PathJoinSubstitution(
                 [FindPackageShare("wpr_simulation2"), "launch", "spawn_objects.launch.py"]
             )
-        )
+        ),
+        condition=IfCondition(LaunchConfiguration("spawn_objects")),
     )
 
-    return LaunchDescription([world, spawn_robot, spawn_objects])
+    return LaunchDescription(
+        [
+            spawn_objects_arg,
+            gazebo_gui_arg,
+            world,
+            spawn_robot,
+            spawn_objects,
+        ]
+    )
