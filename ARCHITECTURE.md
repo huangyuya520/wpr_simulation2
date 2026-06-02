@@ -1,5 +1,11 @@
 # Architecture Notes
 
+## 2026-06-02 README usage flow refresh
+
+- Documentation decision: the package README usage section is now organized by operator workflow instead of historical course order: install/build, quick start, feature entrypoints, teleop, SLAM, Nav2, compatibility limits, and troubleshooting.
+- Path contract: examples use `~/ros2_ws` and package-relative commands instead of machine-specific absolute paths, so new users can copy commands without adapting `/home/.../ROSExperimenteight` paths.
+- Maintenance rule: when adding or removing launch files, update the README feature-entry table in the same change so the public usage surface remains discoverable.
+
 ## 2026-04-18 Git divergence handling
 
 - Root cause: local `main` and `origin/main` each had one unique commit, so `git pull` stopped because no pull strategy was configured.
